@@ -567,6 +567,8 @@ struct ColumnStatisticsDesc {
 struct ColumnStatistics {
 1: required ColumnStatisticsDesc statsDesc,
 2: required list<ColumnStatisticsObj> statsObj;
+// added because of HIVE-22046
+4: optional string engine
 }
 
 struct AggrStats {
@@ -592,6 +594,8 @@ struct SetPartitionsStatsRequest {
 2: optional bool needMerge //stats need to be merged with the existing stats
 3: optional i64 writeId=-1,         // writeId for the current query that updates the stats
 4: optional string validWriteIdList, // valid write id list for the table for which this struct is being sent
+// added because of HIVE-22046; added as optional to support older Hive versions too.
+5: optional string engine
 }
 
 struct SetPartitionsStatsResponse {
@@ -736,6 +740,8 @@ struct TableStatsRequest {
  2: required string tblName,
  3: required list<string> colNames
  4: optional string catName
+// added because of HIVE-22046; added as optional to support older Hive versions too.
+ 6: optional string engine
 }
 
 struct PartitionsStatsRequest {
@@ -744,6 +750,8 @@ struct PartitionsStatsRequest {
  3: required list<string> colNames,
  4: required list<string> partNames,
  5: optional string catName
+// added because of HIVE-22046; added as optional to support older Hive versions too.
+ 7: optional string engine
 }
 
 // Return type for add_partitions_req
@@ -2010,10 +2018,12 @@ service ThriftHiveMetastore extends fb303.FacebookService
   // delete APIs attempt to delete column statistics, if found, associated with a given db_name, tbl_name, [part_name]
   // and col_name. If the delete API doesn't find the statistics record in the metastore, throws NoSuchObjectException
   // Delete API validates the input and if the input is invalid throws InvalidInputException/InvalidObjectException.
-  bool delete_partition_column_statistics(1:string db_name, 2:string tbl_name, 3:string part_name, 4:string col_name) throws
+  // engine parameter added because of HIVE-22046
+  bool delete_partition_column_statistics(1:string db_name, 2:string tbl_name, 3:string part_name, 4:string col_name, 5:string engine) throws
               (1:NoSuchObjectException o1, 2:MetaException o2, 3:InvalidObjectException o3,
                4:InvalidInputException o4)
-  bool delete_table_column_statistics(1:string db_name, 2:string tbl_name, 3:string col_name) throws
+  // engine parameter added because of HIVE-22046
+  bool delete_table_column_statistics(1:string db_name, 2:string tbl_name, 3:string col_name, 4:string engine) throws
               (1:NoSuchObjectException o1, 2:MetaException o2, 3:InvalidObjectException o3,
                4:InvalidInputException o4)
 
