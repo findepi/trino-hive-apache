@@ -308,7 +308,14 @@ public class AcidUtils {
   public static long parseBase(Path path) {
     String filename = path.getName();
     if (filename.startsWith(BASE_PREFIX)) {
-      return Long.parseLong(filename.substring(BASE_PREFIX.length()));
+      // we drop the VISIBILITY part which is present in CDP7 environment.
+      int idxOfVis = filename.indexOf("_v");
+      if(idxOfVis >= 0) {
+        filename = filename.substring(0, idxOfVis);
+      }
+
+      String suffix = filename.substring(BASE_PREFIX.length());
+      return Long.parseLong(suffix);
     }
     throw new IllegalArgumentException(filename + " does not start with " +
         BASE_PREFIX);
@@ -900,6 +907,12 @@ public class AcidUtils {
     String filename = deltaDir.getName();
     boolean isDeleteDelta = deltaPrefix.equals(DELETE_DELTA_PREFIX);
     if (filename.startsWith(deltaPrefix)) {
+      // we drop the VISIBILITY part which is present in CDP7 environment.
+      int idxOfVis = filename.indexOf("_v");
+      if(idxOfVis >= 0) {
+        filename = filename.substring(0, idxOfVis);
+      }
+
       //small optimization - delete delta can't be in raw format
       boolean isRawFormat = !isDeleteDelta && MetaDataFile.isRawFormat(deltaDir, fs);
       String rest = filename.substring(deltaPrefix.length());
