@@ -28,9 +28,20 @@ public class AcidUtilsTest
     @Test
     public void testParseBase()
     {
-        assertEquals(123, AcidUtils.parseBase(new Path("some/dir/base_123")));
-        // v456 VISIBILITY part should be ignored
-        assertEquals(123, AcidUtils.parseBase(new Path("some/dir/base_123_v456")));
+        {
+            Path path = new Path("some/dir/base_123");
+            AcidUtils.ParsedBase actual = AcidUtils.ParsedBase.parseBase(path);
+            assertEquals(123, actual.getWriteId());
+            assertEquals(0, actual.getVisibilityTxnId());
+            assertEquals(path, actual.getBaseDirPath());
+        }
+        {
+            Path path = new Path("some/dir/base_123_v456");
+            AcidUtils.ParsedBase actual = AcidUtils.ParsedBase.parseBase(path);
+            assertEquals(123, actual.getWriteId());
+            assertEquals(456, actual.getVisibilityTxnId());
+            assertEquals(path, actual.getBaseDirPath());
+        }
     }
 
     @Test

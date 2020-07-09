@@ -51,7 +51,6 @@ import org.apache.hadoop.hive.metastore.api.DataOperationType;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.exec.Utilities;
-import org.apache.hadoop.hive.ql.io.AcidUtils.ParsedDelta;
 import org.apache.hadoop.hive.ql.io.orc.OrcFile;
 import org.apache.hadoop.hive.ql.io.orc.OrcInputFormat;
 import org.apache.hadoop.hive.ql.io.orc.OrcRecordUpdater;
@@ -150,6 +149,8 @@ public class AcidUtils {
   public static final int MAX_STATEMENTS_PER_TXN = 10000;
   public static final Pattern BUCKET_DIGIT_PATTERN = Pattern.compile("[0-9]{5}$");
   public static final Pattern   LEGACY_BUCKET_DIGIT_PATTERN = Pattern.compile("^[0-9]{6}");
+
+    public static final String VISIBILITY_PREFIX = "_v";
 
   /**
    * A write into a non-aicd table produces files like 0000_0 or 0000_0_copy_1
@@ -301,24 +302,61 @@ public class AcidUtils {
   }
 
   /**
-   * Get the write id from a base directory name.
-   * @param path the base directory name
-   * @return the maximum write id that is included
+     * Since version 3 but prior to version 4, format of a base is "base_X" where X is a writeId.
+     * If this base was produced by a compactor, X is the highest writeId that the compactor included.
+     * If this base is produced by Insert Overwrite stmt, X is a writeId of the transaction that
+     * executed the insert.
+     * Since Hive Version 4.0, the format of a base produced by a compactor is
+     * base_X_vY.  X is like before, i.e. the highest writeId compactor included and Y is the
+     * visibilityTxnId of the transaction in which the compactor ran.
+     * (v(isibility) is a literal to help parsing).
    */
-  public static long parseBase(Path path) {
-    String filename = path.getName();
-    if (filename.startsWith(BASE_PREFIX)) {
-      // we drop the VISIBILITY part which is present in CDP7 environment.
-      int idxOfVis = filename.indexOf("_v");
-      if(idxOfVis >= 0) {
-        filename = filename.substring(0, idxOfVis);
-      }
+  public static final class ParsedBase
+  {
+    private final long writeId;
+    private final long visibilityTxnId;
+    private final Path baseDirPath;
 
-      String suffix = filename.substring(BASE_PREFIX.length());
-      return Long.parseLong(suffix);
+    ParsedBase(long writeId, Path baseDirPath)
+    {
+      this(writeId, 0, baseDirPath);
     }
-    throw new IllegalArgumentException(filename + " does not start with " +
-        BASE_PREFIX);
+
+    ParsedBase(long writeId, long visibilityTxnId, Path baseDirPath)
+    {
+      this.writeId = writeId;
+      this.visibilityTxnId = visibilityTxnId;
+      this.baseDirPath = baseDirPath;
+    }
+
+    public long getWriteId()
+    {
+      return writeId;
+    }
+
+    public long getVisibilityTxnId()
+    {
+      return visibilityTxnId;
+    }
+
+    public Path getBaseDirPath()
+    {
+      return baseDirPath;
+    }
+
+    public static ParsedBase parseBase(Path path)
+    {
+      String filename = path.getName();
+      if (!filename.startsWith(BASE_PREFIX)) {
+        throw new IllegalArgumentException(filename + " does not start with " + BASE_PREFIX);
+      }
+      int idxOfv = filename.indexOf(VISIBILITY_PREFIX);
+      if (idxOfv < 0) {
+        return new ParsedBase(Long.parseLong(filename.substring(BASE_PREFIX.length())), path);
+      }
+      return new ParsedBase(Long.parseLong(filename.substring(BASE_PREFIX.length(), idxOfv)),
+              Long.parseLong(filename.substring(idxOfv + VISIBILITY_PREFIX.length())), path);
+    }
   }
 
   /**
@@ -373,7 +411,7 @@ public class AcidUtils {
         result
             .setOldStyle(false)
             .minimumWriteId(0)
-            .maximumWriteId(parseBase(bucketFile.getParent()))
+            .maximumWriteId(ParsedBase.parseBase(bucketFile.getParent()).getWriteId())
             .bucket(bucket)
             .writingBase(true);
       } else if (bucketFile.getParent().getName().startsWith(DELTA_PREFIX)) {
@@ -1173,7 +1211,7 @@ public class AcidUtils {
       return;
     }
     if (fn.startsWith(BASE_PREFIX)) {
-      long writeId = parseBase(p);
+      long writeId = ParsedBase.parseBase(p).getWriteId();
       if(bestBase.oldestBaseWriteId > writeId) {
         //keep track for error reporting
         bestBase.oldestBase = p;
