@@ -1183,18 +1183,22 @@ public class AcidUtils {
    * causes anything written previously is ignored (hence the overwrite).  In this case, base_x
    * is visible if writeid:x is committed for current reader.
    */
-  private static boolean isValidBase(long baseWriteId, ValidWriteIdList writeIdList, Path baseDir,
-            FileSystem fs) throws IOException {
+  private static boolean isValidBase(ParsedBase parsedBase, ValidWriteIdList writeIdList, FileSystem fs) throws IOException {
+    long baseWriteId = parsedBase.getWriteId();
     if(baseWriteId == Long.MIN_VALUE) {
       //such base is created by 1st compaction in case of non-acid to acid table conversion
       //By definition there are no open txns with id < 1.
       return true;
     }
-    if(MetaDataFile.isCompacted(baseDir, fs)) {
+    if(isCompactedBase(parsedBase, fs)) {
       return writeIdList.isValidBase(baseWriteId);
     }
     //this is the IOW case
     return writeIdList.isWriteIdValid(baseWriteId);
+  }
+
+  private static boolean isCompactedBase(ParsedBase parsedBase, FileSystem fs) throws IOException {
+    return parsedBase.getVisibilityTxnId() > 0 || MetaDataFile.isCompacted(parsedBase.getBaseDirPath(), fs);
   }
 
   private static void getChildState(FileStatus child, HdfsFileStatusWithId childWithId,
@@ -1211,19 +1215,20 @@ public class AcidUtils {
       return;
     }
     if (fn.startsWith(BASE_PREFIX)) {
-      long writeId = ParsedBase.parseBase(p).getWriteId();
+      ParsedBase parsedBase = ParsedBase.parseBase(p);
+      long writeId = parsedBase.getWriteId();
       if(bestBase.oldestBaseWriteId > writeId) {
         //keep track for error reporting
         bestBase.oldestBase = p;
         bestBase.oldestBaseWriteId = writeId;
       }
       if (bestBase.status == null) {
-        if(isValidBase(writeId, writeIdList, p, fs)) {
+        if(isValidBase(parsedBase, writeIdList, fs)) {
           bestBase.status = child;
           bestBase.writeId = writeId;
         }
       } else if (bestBase.writeId < writeId) {
-        if(isValidBase(writeId, writeIdList, p, fs)) {
+        if(isValidBase(parsedBase, writeIdList, fs)) {
           obsolete.add(bestBase.status);
           bestBase.status = child;
           bestBase.writeId = writeId;
