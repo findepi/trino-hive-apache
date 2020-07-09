@@ -1190,11 +1190,11 @@ public class AcidUtils {
       //By definition there are no open txns with id < 1.
       return true;
     }
-    if(!MetaDataFile.isCompacted(baseDir, fs)) {
-      //this is the IOW case
-      return writeIdList.isWriteIdValid(baseWriteId);
+    if(MetaDataFile.isCompacted(baseDir, fs)) {
+      return writeIdList.isValidBase(baseWriteId);
     }
-    return writeIdList.isValidBase(baseWriteId);
+    //this is the IOW case
+    return writeIdList.isWriteIdValid(baseWriteId);
   }
 
   private static void getChildState(FileStatus child, HdfsFileStatusWithId childWithId,
