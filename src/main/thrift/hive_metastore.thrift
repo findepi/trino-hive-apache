@@ -1587,6 +1587,19 @@ struct GetRuntimeStatsRequest {
   2: required i32 maxCreateTime
 }
 
+struct CreateTableRequest {
+   1: required Table table,
+   2: optional EnvironmentContext envContext,
+   3: optional list<SQLPrimaryKey> primaryKeys,
+   4: optional list<SQLForeignKey> foreignKeys,
+   5: optional list<SQLUniqueConstraint> uniqueConstraints,
+   6: optional list<SQLNotNullConstraint> notNullConstraints,
+   7: optional list<SQLDefaultConstraint> defaultConstraints,
+   8: optional list<SQLCheckConstraint> checkConstraints,
+   9: optional list<string> processorCapabilities,
+   10: optional string processorIdentifier
+}
+
 // Exceptions.
 
 exception MetaException {
@@ -1707,6 +1720,9 @@ service ThriftHiveMetastore extends fb303.FacebookService
       throws (1:AlreadyExistsException o1,
               2:InvalidObjectException o2, 3:MetaException o3,
               4:NoSuchObjectException o4)
+  void create_table_req(1:CreateTableRequest request) throws (1:AlreadyExistsException o1,
+        2:InvalidObjectException o2, 3:MetaException o3,
+        4:NoSuchObjectException o4)
   void drop_constraint(1:DropConstraintRequest req)
       throws(1:NoSuchObjectException o1, 2:MetaException o3)
   void add_primary_key(1:AddPrimaryKeyRequest req)
